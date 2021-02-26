@@ -1,0 +1,15 @@
+[package]
+name = "probe-client"
+version = "0.0.1"
+authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+systemstat = "0.1.7"
+serde_derive = "1.0.123"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.61"
+toml = "0.5"
+reqwest = { version = "0.11", features = ["json", "serde_json"] }
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
+env_logger = "0.8.2"
