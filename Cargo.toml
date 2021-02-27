@@ -13,3 +13,4 @@ toml = "0.5"
 reqwest = { version = "0.11", features = ["json", "serde_json"] }
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
 env_logger = "0.8.2"
+anyhow = "1.0.38"

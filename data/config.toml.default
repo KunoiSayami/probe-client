@@ -1,3 +1,7 @@
 [server]
-address =
-token =
+server_address = ""
+token = ""
+# backup_servers = [""]
+
+[statistics]
+enabled = false
