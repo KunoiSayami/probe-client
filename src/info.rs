@@ -18,13 +18,12 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::thread;
-use std::time::Duration;
-use systemstat::{System, Platform, saturating_sub_bytes, LoadAverage};
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-
+use std::thread;
+use std::time::Duration;
+use systemstat::{saturating_sub_bytes, LoadAverage, Platform, System};
 
 #[derive(Serialize, Deserialize)]
 struct MountInfo {
@@ -32,17 +31,17 @@ struct MountInfo {
     mount_type: String,
     mount_on: String,
     mount_avail: String,
-    mount_total: String
+    mount_total: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct NetworkAddr {
-    addr: String
+    addr: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct NetworkInfo {
-    interfaces: HashMap<String, Vec<String>>
+    interfaces: HashMap<String, Vec<String>>,
 }
 
 #[cfg(unix)]
@@ -66,7 +65,7 @@ struct NetworkStatistics {
 struct PowerInfo {
     has_battery: bool,
     battery_size: i32,
-    connect_to_ac: bool
+    connect_to_ac: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,7 +79,7 @@ struct MemoryInfo {
 struct LoadAverage {
     last1: f32,
     last5: f32,
-    last15: f32
+    last15: f32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,7 +88,6 @@ struct CpuLoadInfo {
     system: f32,
     idle: f32,
 }
-
 
 #[derive(Serialize, Deserialize)]
 struct PostInfo {
@@ -101,9 +99,7 @@ struct PostInfo {
     memory: MemoryInfo,
     cpu: CpuLoadInfo,
     #[cfg(unix)]
-    loadavg: LoadAverage
-
+    loadavg: LoadAverage,
 }
 
-pub fn get_base_info() {
-}
+pub fn get_base_info() {}

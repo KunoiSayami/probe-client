@@ -17,9 +17,9 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-mod info;
 mod configparser;
+mod info;
 
-fn main(){
+fn main() {
     info::get_base_info();
 }

@@ -19,15 +19,14 @@
  */
 mod config {
 
-    use serde_derive::{Serialize, Deserialize};
+    use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
 
-    use std::path::Path;
     use anyhow::Result;
+    use log::{error, info};
     use reqwest::header::HeaderMap;
-    use std::convert::TryInto;
     use reqwest::Request;
-    use log::{error};
+    use std::path::Path;
 
     #[derive(Serialize, Deserialize)]
     pub(crate) struct Configure {
@@ -55,41 +54,58 @@ mod config {
 
     struct Session {
         config: Configure,
-        client: reqwest::Client
+        client: reqwest::Client,
     }
 
     impl Session {
-
         pub fn new<P: AsRef<Path>>(path: P) -> Result<Session> {
             let contents = std::fs::read_to_string(path)?;
             let contents_str = contents.as_str();
 
-            let config: Configure = toml::from_str(contents_str)?;
+            let mut config: Configure = toml::from_str(contents_str)?;
 
             let mut header_map = HeaderMap::new();
 
-            header_map.append("Authorization", format!("Bearer {}", &config.server.token).parse()?);
+            if config.identification.is_none() {
+                config.identification = Some(Identification {
+                    token: uuid::Uuid::new_v4().to_string(),
+                });
+                info!(
+                    "Generate new uuid identification token: {}",
+                    config.identification.unwrap().token
+                );
+                std::fs::write(&path, toml::to_string(&config)?)?;
+            }
+
+            header_map.append(
+                "Authorization",
+                format!("Bearer {}", &config.server.token).parse()?,
+            );
 
             let client = reqwest::ClientBuilder::new()
                 .default_headers(header_map)
-                .redirect(reqwest::redirect::Policy::max_value())
+                .redirect(reqwest::redirect::Policy::default())
                 .build()?;
 
-            Ok(Session{config, client})
-
+            Ok(Session { config, client })
         }
 
-        pub async fn post_data<T: TryInto<serde_json::Value>>(&self, data: &T) -> Result<reqwest::Response>  {
-            match self.post_data_to_url(&self.config.server.server_address, data.try_into()?).await {
+        pub async fn post(&self, data: &HashMap<String, String>) -> Result<reqwest::Response> {
+            match self
+                .post_data_to_url(&self.config.server.server_address, data)
+                .await
+            {
                 Ok(resp) => Ok(resp),
                 Err(e) => {
                     if let Some(servers) = &self.config.server.backup_servers {
+                        let mut rt_value: Result<reqwest::Response> = Err(e);
                         for url in servers {
-                            match self.post_data_to_url(&url, data).await {
-                                Ok(resp) => resp,
-                                Err(e) => continue
+                            match self.post_data_to_url(url, data).await {
+                                Ok(resp) => rt_value = Ok(resp),
+                                Err(e) => rt_value = Err(e),
                             }
                         }
+                        rt_value
                     } else {
                         Err(e)
                     }
@@ -97,13 +113,40 @@ mod config {
             }
         }
 
-        pub async fn post_data_to_url(&self, url: &String, data: &serde_json::Value) -> Result<reqwest::Response> {
-            Ok(self.client.post(url)
-                .json(data)
-                .send()
-                .await?
-            )
+        async fn post_data_to_url(
+            &self,
+            url: &str,
+            data: &HashMap<String, String>,
+        ) -> Result<reqwest::Response> {
+            Ok(self.client.post(url).json(data).send().await?)
         }
 
+        pub async fn send_data(
+            &self,
+            action: &str,
+            body: Option<&str>,
+        ) -> Result<reqwest::Response> {
+            let mut data: HashMap<String, String> = Default::default();
+            for item in [
+                ("action", action),
+                ("token", &self.config.identification.as_ref().unwrap().token),
+            ]
+            .iter()
+            {
+                data.insert((*item.0).to_string(), (*item.1).to_string());
+            }
+            if body.is_some() {
+                data.insert("body".to_string(), body.unwrap().into_string());
+            }
+            self.post_data(&data).await
+        }
+
+        pub async fn init_connection(&self) -> Result<reqwest::Response> {
+            self.send_data("register", None).await
+        }
+
+        pub async fn send_heartbeat(&self) -> Result<reqwest::Response> {
+            self.send_data("heartbeat", None).await
+        }
     }
 }
