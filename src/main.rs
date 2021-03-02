@@ -20,6 +20,8 @@
 mod configparser;
 mod info;
 
-fn main() {
-    info::get_base_info();
+fn main() -> anyhow::Result<()> {
+    let j = info::get_base_info();
+    println!("{}", serde_json::to_string(&j)?);
+    Ok(())
 }

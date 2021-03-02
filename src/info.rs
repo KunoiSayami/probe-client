@@ -18,14 +18,16 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+use log::error;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::net::Ipv4Addr;
 use std::thread;
 use std::time::Duration;
-use systemstat::{saturating_sub_bytes, LoadAverage, Platform, System, Filesystem, NetworkStats, Memory, CPULoad};
-use log::{error};
-use std::fmt::Formatter;
+use systemstat::{
+    saturating_sub_bytes, Filesystem, LoadAverage, Memory, NetworkStats, Platform, System,
+};
 
 #[derive(Serialize, Deserialize)]
 struct MountInfo {
@@ -43,7 +45,13 @@ impl From<&systemstat::Filesystem> for MountInfo {
         let mount_on = fs.fs_mounted_on.clone();
         let mount_avail = fs.avail;
         let mount_total = fs.total;
-        MountInfo {mount_from, mount_type, mount_on, mount_avail: mount_avail.as_u64(), mount_total: mount_total.as_u64()}
+        MountInfo {
+            mount_from,
+            mount_type,
+            mount_on,
+            mount_avail: mount_avail.as_u64(),
+            mount_total: mount_total.as_u64(),
+        }
     }
 }
 
@@ -59,12 +67,14 @@ impl std::fmt::Display for NetworkAddr {
 
 impl From<&systemstat::IpAddr> for NetworkAddr {
     fn from(addrs: &systemstat::IpAddr) -> Self {
-        NetworkAddr{ addr: match addrs {
-            systemstat::IpAddr::V6(v6addr) => v6addr.to_string(),
-            systemstat::IpAddr::V4(v4addr) => v4addr.to_string(),
-            systemstat::IpAddr::Empty => "Empty".to_string(),
-            systemstat::IpAddr::Unsupported => "Unsupported".to_string(),
-        }}
+        NetworkAddr {
+            addr: match addrs {
+                systemstat::IpAddr::V6(v6addr) => v6addr.to_string(),
+                systemstat::IpAddr::V4(v4addr) => v4addr.to_string(),
+                systemstat::IpAddr::Empty => "Empty".to_string(),
+                systemstat::IpAddr::Unsupported => "Unsupported".to_string(),
+            },
+        }
     }
 }
 
@@ -114,7 +124,12 @@ struct PowerInfo {
 
 impl PowerInfo {
     fn new(battery_info: (bool, f32, u64), ac_info: Option<bool>) -> PowerInfo {
-        PowerInfo{has_battery: battery_info.0, battery_size: battery_info.1, remaining_time: battery_info.2, connect_to_ac: ac_info}
+        PowerInfo {
+            has_battery: battery_info.0,
+            battery_size: battery_info.1,
+            remaining_time: battery_info.2,
+            connect_to_ac: ac_info,
+        }
     }
 }
 
@@ -126,7 +141,10 @@ struct MemoryInfo {
 
 impl From<&systemstat::Memory> for MemoryInfo {
     fn from(mem: &Memory) -> Self {
-        MemoryInfo { used: systemstat::saturating_sub_bytes(mem.total, mem.free).as_u64(), total: mem.total.as_u64()}
+        MemoryInfo {
+            used: systemstat::saturating_sub_bytes(mem.total, mem.free).as_u64(),
+            total: mem.total.as_u64(),
+        }
     }
 }
 
@@ -141,19 +159,23 @@ struct LoadAvg {
 #[cfg(unix)]
 impl From<&systemstat::LoadAverage> for LoadAvg {
     fn from(load: &LoadAverage) -> Self {
-        LoadAvg{last1: load.one, last5: load.five, last15: load.fifteen}
+        LoadAvg {
+            last1: load.one,
+            last5: load.five,
+            last15: load.fifteen,
+        }
     }
 }
 
 #[derive(Serialize, Deserialize)]
-struct CpuLoadInfo {
+pub struct CpuLoadInfo {
     user: f32,
     system: f32,
     idle: f32,
 }
 
 impl From<&systemstat::CPULoad> for CpuLoadInfo {
-    fn from(cpu: &CPULoad) -> Self {
+    fn from(cpu: &systemstat::CPULoad) -> Self {
         CpuLoadInfo {
             user: cpu.user * 100.0,
             system: cpu.system * 100.0,
@@ -163,7 +185,7 @@ impl From<&systemstat::CPULoad> for CpuLoadInfo {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PostInfo {
+pub struct PostInfo {
     mount: Vec<MountInfo>,
     network: NetworkInfo,
     #[cfg(unix)]
@@ -177,14 +199,27 @@ struct PostInfo {
     boot_time: String,
 }
 
-
-async fn measure_cpu(cpu: &systemstat::DelayedMeasurement<CPULoad>) -> anyhow::Result<CpuLoadInfo> {
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    let cpu = cpu.done().unwrap();
-    Ok(CpuLoadInfo::from(&cpu))
+mod blocking {
+    pub(crate) fn measure_cpu(
+        cpu: &systemstat::DelayedMeasurement<systemstat::CPULoad>,
+    ) -> anyhow::Result<crate::info::CpuLoadInfo> {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let cpu = cpu.done().unwrap();
+        Ok(crate::info::CpuLoadInfo::from(&cpu))
+    }
 }
 
-pub fn get_base_info() {
+mod asyncd {
+    pub(crate) async fn measure_cpu(
+        cpu: &systemstat::DelayedMeasurement<systemstat::CPULoad>,
+    ) -> anyhow::Result<crate::info::CpuLoadInfo> {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let cpu = cpu.done().unwrap();
+        Ok(crate::info::CpuLoadInfo::from(&cpu))
+    }
+}
+
+pub fn get_base_info() -> PostInfo {
     let sys = System::new();
 
     let mount = match sys.mounts() {
@@ -227,7 +262,10 @@ pub fn get_base_info() {
             for netif in netifs.values() {
                 let stats = sys.network_stats(&netif.name);
                 if stats.is_ok() {
-                    map.insert(netif.name.clone(), InterfaceStatistics::from(&stats.unwrap()));
+                    map.insert(
+                        netif.name.clone(),
+                        InterfaceStatistics::from(&stats.unwrap()),
+                    );
                 } else {
                     if_stat_err.push(netif.name.clone());
                 }
@@ -241,35 +279,43 @@ pub fn get_base_info() {
     };
 
     let battery_info = match sys.battery_life() {
-        Ok(battery) =>
-            (true, battery.remaining_capacity, battery.remaining_time.as_secs()),
-        Err(_x) => (false, 0f32, 0u64)
+        Ok(battery) => (
+            true,
+            battery.remaining_capacity,
+            battery.remaining_time.as_secs(),
+        ),
+        Err(_x) => (false, 0f32, 0u64),
     };
 
-    let power_info = PowerInfo::new(battery_info, match sys.on_ac_power() {
-        Ok(power) => Some(power),
-        Err(e) => {
-            error!("Got error in fetch AC status: {}", e);
-            None
-        }
-    });
+    let power_info = PowerInfo::new(
+        battery_info,
+        match sys.on_ac_power() {
+            Ok(power) => Some(power),
+            Err(e) => {
+                error!("Got error in fetch AC status: {}", e);
+                None
+            }
+        },
+    );
 
     let memory_info = match sys.memory() {
         Ok(mem) => MemoryInfo::from(&mem),
         Err(x) => {
-            println!("Got error in fetch memory usage: {}", x);
-            MemoryInfo{total: 0, used: 0}
+            error!("Got error in fetch memory usage: {}", x);
+            MemoryInfo { total: 0, used: 0 }
         }
     };
 
     #[cfg(unix)]
     let load_avg = match sys.load_average() {
-        Ok(loadavg) => {
-            LoadAvg::from(&loadavg)
-        },
+        Ok(loadavg) => LoadAvg::from(&loadavg),
         Err(x) => {
-            println!("Got error in load average: {}", x);
-            LoadAvg{last1: 0.0, last5: 0.0, last15: 0.0}
+            error!("Got error in load average: {}", x);
+            LoadAvg {
+                last1: 0.0,
+                last5: 0.0,
+                last15: 0.0,
+            }
         }
     };
 
@@ -277,5 +323,33 @@ pub fn get_base_info() {
 
     let boot_time = sys.boot_time().unwrap().to_string();
 
+    let cpu_load = match sys.cpu_load_aggregate() {
+        Ok(cpu) => blocking::measure_cpu(&cpu).unwrap(),
+        Err(x) => {
+            error!("Got error in measure cpu usage: {}", x);
+            CpuLoadInfo {
+                user: 0.0,
+                system: 0.0,
+                idle: 0.0,
+            }
+        }
+    };
 
+    PostInfo {
+        mount,
+        network: NetworkInfo {
+            interfaces: network,
+        },
+        #[cfg(unix)]
+        network_statistics: NetworkStatistics {
+            interfaces: network_statistics,
+        },
+        power: power_info,
+        memory: memory_info,
+        cpu: cpu_load,
+        #[cfg(unix)]
+        loadavg: load_avg,
+        uptime: 0,
+        boot_time,
+    }
 }

@@ -47,8 +47,7 @@ mod config {
         enabled: bool,
     }
 
-    #[derive(Clone)]
-    #[derive(Serialize, Deserialize)]
+    #[derive(Clone, Serialize, Deserialize)]
     struct Identification {
         token: String,
     }
