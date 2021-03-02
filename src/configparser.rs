@@ -47,6 +47,7 @@ mod config {
         enabled: bool,
     }
 
+    #[derive(Clone)]
     #[derive(Serialize, Deserialize)]
     struct Identification {
         token: String,
@@ -59,7 +60,7 @@ mod config {
 
     impl Session {
         pub fn new<P: AsRef<Path>>(path: P) -> Result<Session> {
-            let contents = std::fs::read_to_string(path)?;
+            let contents = std::fs::read_to_string(&path)?;
             let contents_str = contents.as_str();
 
             let mut config: Configure = toml::from_str(contents_str)?;
@@ -72,7 +73,7 @@ mod config {
                 });
                 info!(
                     "Generate new uuid identification token: {}",
-                    config.identification.unwrap().token
+                    config.identification.clone().unwrap().token
                 );
                 std::fs::write(&path, toml::to_string(&config)?)?;
             }
@@ -136,9 +137,9 @@ mod config {
                 data.insert((*item.0).to_string(), (*item.1).to_string());
             }
             if body.is_some() {
-                data.insert("body".to_string(), body.unwrap().into_string());
+                data.insert("body".to_string(), String::from(body.unwrap()));
             }
-            self.post_data(&data).await
+            self.post(&data).await
         }
 
         pub async fn init_connection(&self) -> Result<reqwest::Response> {

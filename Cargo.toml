@@ -4,6 +4,9 @@ version = "0.0.1"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 
+[features]
+async_enabled = []
+
 [dependencies]
 systemstat = "0.1.7"
 serde_derive = "1.0.123"
@@ -15,3 +18,5 @@ log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug
 env_logger = "0.8.2"
 anyhow = "1.0.38"
 uuid = { version = "0.8", features = ["serde", "v4"] }
+gethostname = "0.2.1"
+tokio = { version = "1", features = ["full"] }
