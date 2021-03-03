@@ -17,7 +17,7 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-mod config {
+pub(crate) mod config {
 
     use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
@@ -52,7 +52,7 @@ mod config {
         token: String,
     }
 
-    struct Session {
+    pub struct Session {
         config: Configure,
         client: reqwest::Client,
     }

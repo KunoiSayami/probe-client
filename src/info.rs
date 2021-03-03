@@ -196,30 +196,24 @@ pub struct PostInfo {
     #[cfg(unix)]
     loadavg: LoadAvg,
     uptime: u64,
-    boot_time: String,
+    boot_time: i64,
 }
 
-mod blocking {
-    pub(crate) fn measure_cpu(
-        cpu: &systemstat::DelayedMeasurement<systemstat::CPULoad>,
-    ) -> anyhow::Result<crate::info::CpuLoadInfo> {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        let cpu = cpu.done().unwrap();
-        Ok(crate::info::CpuLoadInfo::from(&cpu))
+impl std::fmt::Display for PostInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
     }
 }
 
-mod asyncd {
-    pub(crate) async fn measure_cpu(
-        cpu: &systemstat::DelayedMeasurement<systemstat::CPULoad>,
-    ) -> anyhow::Result<crate::info::CpuLoadInfo> {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        let cpu = cpu.done().unwrap();
-        Ok(crate::info::CpuLoadInfo::from(&cpu))
-    }
+pub(crate) async fn measure_cpu(
+    cpu: &systemstat::DelayedMeasurement<systemstat::CPULoad>,
+) -> anyhow::Result<crate::info::CpuLoadInfo> {
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    let cpu = cpu.done().unwrap();
+    Ok(crate::info::CpuLoadInfo::from(&cpu))
 }
 
-pub fn get_base_info() -> PostInfo {
+pub async fn get_base_info() -> PostInfo {
     let sys = System::new();
 
     let mount = match sys.mounts() {
@@ -321,10 +315,10 @@ pub fn get_base_info() -> PostInfo {
 
     let uptime = sys.uptime().unwrap();
 
-    let boot_time = sys.boot_time().unwrap().to_string();
+    let boot_time = sys.boot_time().unwrap().timestamp();
 
     let cpu_load = match sys.cpu_load_aggregate() {
-        Ok(cpu) => blocking::measure_cpu(&cpu).unwrap(),
+        Ok(cpu) => measure_cpu(&cpu).await.unwrap(),
         Err(x) => {
             error!("Got error in measure cpu usage: {}", x);
             CpuLoadInfo {
@@ -349,7 +343,7 @@ pub fn get_base_info() -> PostInfo {
         cpu: cpu_load,
         #[cfg(unix)]
         loadavg: load_avg,
-        uptime: 0,
+        uptime: uptime.as_secs(),
         boot_time,
     }
 }

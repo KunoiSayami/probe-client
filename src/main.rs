@@ -20,8 +20,19 @@
 mod configparser;
 mod info;
 
+use configparser::config::Session;
+
+async fn async_main(s: Session) -> anyhow::Result<()> {
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
-    let j = info::get_base_info();
-    println!("{}", serde_json::to_string(&j)?);
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async_main(configparser::config::Session::new(
+            "data/config.toml",
+        )?));
     Ok(())
 }
