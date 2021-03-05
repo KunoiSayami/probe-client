@@ -1,5 +1,25 @@
 # Probe client
 
+
+# Configure
+
+```toml
+[server]
+
+# Probe server address
+server_address = "https://example.com:8888"
+
+# Authorization token, used in 
+token = ""
+
+# Optional: backup servers
+# backup_servers = [""]
+
+[statistics]
+#Set report to server statistics in each report
+enabled = false
+```
+
 ## License
 
 [![](https://www.gnu.org/graphics/agplv3-155x51.png)](https://www.gnu.org/licenses/agpl-3.0.txt)

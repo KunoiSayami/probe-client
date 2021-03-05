@@ -17,15 +17,71 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+mod response {
+    use serde_derive::{Deserialize, Serialize};
+    use std::fmt::Formatter;
+
+    #[derive(Serialize, Deserialize)]
+    pub struct JsonResponse {
+        status: i64,
+        error_code: Option<i64>,
+        message: Option<String>,
+    }
+
+    impl JsonResponse {
+        pub fn get_status_code(&self) -> i64 {
+            self.status
+        }
+
+        pub fn get_error_code(&self) -> Option<i64> {
+            self.error_code
+        }
+
+        pub fn get_additional_message(&self) -> Option<String> {
+            self.message.clone()
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Error {
+        code: i64,
+        message: Option<String>,
+    }
+
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "Got response error: {} {}",
+                self.code,
+                self.message
+                    .clone()
+                    .unwrap_or_else(|| "(No description)".to_string())
+            )
+        }
+    }
+
+    impl std::error::Error for Error {}
+
+    impl From<&JsonResponse> for Error {
+        fn from(resp: &JsonResponse) -> Self {
+            Error {
+                code: resp.error_code.unwrap_or(resp.status),
+                message: resp.get_additional_message(),
+            }
+        }
+    }
+}
+
 pub(crate) mod config {
 
     use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
 
+    use crate::configparser::response::JsonResponse;
     use anyhow::Result;
     use log::{error, info};
     use reqwest::header::HeaderMap;
-    use reqwest::Request;
     use std::path::Path;
 
     #[derive(Serialize, Deserialize)]
@@ -124,7 +180,7 @@ pub(crate) mod config {
         pub async fn send_data(
             &self,
             action: &str,
-            body: Option<&str>,
+            body: Option<String>,
         ) -> Result<reqwest::Response> {
             let mut data: HashMap<String, String> = Default::default();
             for item in [
@@ -141,12 +197,32 @@ pub(crate) mod config {
             self.post(&data).await
         }
 
-        pub async fn init_connection(&self) -> Result<reqwest::Response> {
-            self.send_data("register", None).await
+        pub async fn init_connection(&self) -> Result<()> {
+            let resp = self.send_data("register", None).await?;
+            Session::check_response(resp).await
         }
 
-        pub async fn send_heartbeat(&self) -> Result<reqwest::Response> {
-            self.send_data("heartbeat", None).await
+        pub async fn send_heartbeat(&self) -> Result<()> {
+            let resp = self.send_data("heartbeat",
+                if self.config.statistics.enabled {
+                    Some(crate::info::get_base_info().await.to_string())
+                } else {
+                    None
+                }
+            ).await?;
+            Session::check_response(resp).await
+        }
+
+        async fn check_response(response: reqwest::Response) -> Result<()> {
+            let j: JsonResponse = response.json().await?;
+            if j.get_status_code() != 200 {
+                Err(anyhow::Error::new(
+                    crate::configparser::response::Error::from(&j),
+                ))
+            } else {
+                Ok(())
+            }
+
         }
     }
 }

@@ -17,22 +17,36 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+#![feature(never_type)]
 mod configparser;
 mod info;
 
 use configparser::config::Session;
+use std::time::Duration;
+use anyhow::Error;
+use log::error;
 
-async fn async_main(s: Session) -> anyhow::Result<()> {
-    Ok(())
+async fn async_main(session: Session) -> anyhow::Result<!> {
+    session.init_connection().await?;
+    loop {
+        match session.send_heartbeat().await {
+            Err(e) => {
+                error!("Got error in send heartbeat: {:?}", e);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue
+            }
+            _ => {}
+        }
+        tokio::time::sleep(Duration::from_secs(30)).await;
+    }
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<!> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
         .block_on(async_main(configparser::config::Session::new(
             "data/config.toml",
-        )?));
-    Ok(())
+        )?))?;
 }
