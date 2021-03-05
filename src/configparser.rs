@@ -40,6 +40,10 @@ mod response {
         pub fn get_additional_message(&self) -> Option<String> {
             self.message.clone()
         }
+
+        pub fn to_error(&self) -> Error {
+            Error::from(self)
+        }
     }
 
     #[derive(Debug)]
@@ -66,7 +70,9 @@ mod response {
     impl From<&JsonResponse> for Error {
         fn from(resp: &JsonResponse) -> Self {
             Error {
-                code: resp.error_code.unwrap_or(resp.status),
+                code: resp
+                    .get_error_code()
+                    .unwrap_or_else(|| resp.get_status_code()),
                 message: resp.get_additional_message(),
             }
         }
@@ -80,9 +86,10 @@ pub(crate) mod config {
 
     use crate::configparser::response::JsonResponse;
     use anyhow::Result;
-    use log::{error, info};
+    use log::info;
     use reqwest::header::HeaderMap;
     use std::path::Path;
+    use systemstat::Platform;
 
     #[derive(Serialize, Deserialize)]
     pub(crate) struct Configure {
@@ -111,6 +118,11 @@ pub(crate) mod config {
     pub struct Session {
         config: Configure,
         client: reqwest::Client,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct RegisterData {
+        uptime: u64,
     }
 
     impl Session {
@@ -192,37 +204,45 @@ pub(crate) mod config {
                 data.insert((*item.0).to_string(), (*item.1).to_string());
             }
             if body.is_some() {
-                data.insert("body".to_string(), String::from(body.unwrap()));
+                data.insert("body".to_string(), body.unwrap());
             }
             self.post(&data).await
         }
 
         pub async fn init_connection(&self) -> Result<()> {
-            let resp = self.send_data("register", None).await?;
+            let system = systemstat::System::new();
+
+            let data = RegisterData {
+                uptime: system.uptime().unwrap().as_secs(),
+            };
+
+            let resp = self
+                .send_data("register", Some(serde_json::to_string(&data)?))
+                .await?;
             Session::check_response(resp).await
         }
 
         pub async fn send_heartbeat(&self) -> Result<()> {
-            let resp = self.send_data("heartbeat",
-                if self.config.statistics.enabled {
-                    Some(crate::info::get_base_info().await.to_string())
-                } else {
-                    None
-                }
-            ).await?;
+            let resp = self
+                .send_data(
+                    "heartbeat",
+                    if self.config.statistics.enabled {
+                        Some(crate::info::get_base_info().await.to_string())
+                    } else {
+                        None
+                    },
+                )
+                .await?;
             Session::check_response(resp).await
         }
 
         async fn check_response(response: reqwest::Response) -> Result<()> {
             let j: JsonResponse = response.json().await?;
             if j.get_status_code() != 200 {
-                Err(anyhow::Error::new(
-                    crate::configparser::response::Error::from(&j),
-                ))
+                Err(anyhow::Error::new(j.to_error()))
             } else {
                 Ok(())
             }
-
         }
     }
 }

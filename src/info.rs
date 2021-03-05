@@ -22,12 +22,9 @@ use log::error;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::net::Ipv4Addr;
-use std::thread;
-use std::time::Duration;
-use systemstat::{
-    saturating_sub_bytes, Filesystem, LoadAverage, Memory, NetworkStats, Platform, System,
-};
+use systemstat::{Filesystem, Memory, Platform, System};
+#[cfg(unix)]
+use systemstat::{LoadAverage, NetworkStats};
 
 #[derive(Serialize, Deserialize)]
 struct MountInfo {
@@ -196,7 +193,6 @@ pub struct PostInfo {
     #[cfg(unix)]
     loadavg: LoadAvg,
     uptime: u64,
-    boot_time: i64,
 }
 
 impl std::fmt::Display for PostInfo {
@@ -315,8 +311,6 @@ pub async fn get_base_info() -> PostInfo {
 
     let uptime = sys.uptime().unwrap();
 
-    let boot_time = sys.boot_time().unwrap().timestamp();
-
     let cpu_load = match sys.cpu_load_aggregate() {
         Ok(cpu) => measure_cpu(&cpu).await.unwrap(),
         Err(x) => {
@@ -344,6 +338,5 @@ pub async fn get_base_info() -> PostInfo {
         #[cfg(unix)]
         loadavg: load_avg,
         uptime: uptime.as_secs(),
-        boot_time,
     }
 }

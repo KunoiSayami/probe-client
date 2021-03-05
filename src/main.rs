@@ -22,26 +22,24 @@ mod configparser;
 mod info;
 
 use configparser::config::Session;
-use std::time::Duration;
-use anyhow::Error;
 use log::error;
+use std::time::Duration;
 
 async fn async_main(session: Session) -> anyhow::Result<!> {
     session.init_connection().await?;
     loop {
-        match session.send_heartbeat().await {
-            Err(e) => {
-                error!("Got error in send heartbeat: {:?}", e);
-                tokio::time::sleep(Duration::from_secs(5)).await;
-                continue
-            }
-            _ => {}
+        if let Err(e) = session.send_heartbeat().await {
+            error!("Got error in send heartbeat: {:?}", e);
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            continue;
         }
         tokio::time::sleep(Duration::from_secs(30)).await;
     }
 }
 
 fn main() -> anyhow::Result<!> {
+    env_logger::init();
+
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
