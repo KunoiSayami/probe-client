@@ -122,7 +122,8 @@ pub(crate) mod config {
 
     #[derive(Serialize, Deserialize)]
     struct RegisterData {
-        uptime: u64,
+        hostname: String,
+        boot_time: i64,
     }
 
     impl Session {
@@ -213,7 +214,8 @@ pub(crate) mod config {
             let system = systemstat::System::new();
 
             let data = RegisterData {
-                uptime: system.uptime().unwrap().as_secs(),
+                boot_time: system.boot_time().unwrap().timestamp(),
+                hostname: gethostname::gethostname().to_str().unwrap().to_string()
             };
 
             let resp = self
