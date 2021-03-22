@@ -198,7 +198,7 @@ pub(crate) mod config {
             let mut data: HashMap<String, String> = Default::default();
             for item in [
                 ("action", action),
-                ("token", &self.config.identification.as_ref().unwrap().token),
+                ("uuid", &self.config.identification.as_ref().unwrap().token),
             ]
             .iter()
             {
@@ -215,7 +215,7 @@ pub(crate) mod config {
 
             let data = RegisterData {
                 boot_time: system.boot_time().unwrap().timestamp(),
-                hostname: gethostname::gethostname().to_str().unwrap().to_string()
+                hostname: gethostname::gethostname().to_str().unwrap().to_string(),
             };
 
             let resp = self
