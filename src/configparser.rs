@@ -17,6 +17,8 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 mod response {
     use serde_derive::{Deserialize, Serialize};
     use std::fmt::Formatter;
@@ -85,6 +87,7 @@ pub(crate) mod config {
     use std::collections::HashMap;
 
     use crate::configparser::response::JsonResponse;
+    use super::CLIENT_VERSION;
     use anyhow::Result;
     use log::info;
     use reqwest::header::HeaderMap;
@@ -198,6 +201,7 @@ pub(crate) mod config {
         ) -> Result<reqwest::Response> {
             let mut data: HashMap<String, String> = Default::default();
             for item in [
+                ("version", CLIENT_VERSION),
                 ("action", action),
                 ("uuid", &self.config.identification.as_ref().unwrap().token),
             ]

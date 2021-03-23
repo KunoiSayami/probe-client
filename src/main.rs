@@ -46,6 +46,6 @@ fn main() -> anyhow::Result<!> {
         .build()
         .unwrap()
         .block_on(async_main(configparser::config::Session::new(
-            "data/config.toml",
+            "data/probe_client.toml",
         )?))?;
 }

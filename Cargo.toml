@@ -1,19 +1,19 @@
 [package]
 name = "probe-client"
-version = "1.0.3"
+version = "1.1.0"
 authors = ["KunoiSayami <46131041+KunoiSayami@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
 systemstat = "0.1.7"
-serde_derive = "1.0.123"
+serde_derive = "1"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.61"
+serde_json = "1"
 toml = "0.5"
 reqwest = { version = "0.11", features = ["json", "serde_json"] }
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_debug"] }
-env_logger = "0.8.2"
-anyhow = "1.0.38"
+env_logger = "0.8"
+anyhow = "1"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 gethostname = "0.2.1"
 tokio = { version = "1", features = ["full"] }
