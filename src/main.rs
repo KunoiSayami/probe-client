@@ -26,6 +26,7 @@ use log::error;
 use std::time::Duration;
 
 async fn async_main(session: Session) -> anyhow::Result<!> {
+    let interval = session.get_interval();
     session.init_connection().await?;
     loop {
         if let Err(e) = session.send_heartbeat().await {
@@ -33,7 +34,7 @@ async fn async_main(session: Session) -> anyhow::Result<!> {
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
         }
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        tokio::time::sleep(Duration::from_secs(interval)).await;
     }
 }
 

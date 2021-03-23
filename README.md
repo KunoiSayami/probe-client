@@ -15,6 +15,9 @@ token = ""
 # Optional: backup servers
 # backup_servers = [""]
 
+# Optional: heartbeat interval
+interval = 300
+
 [statistics]
 #Set report to server statistics in each report
 enabled = false

@@ -103,6 +103,7 @@ pub(crate) mod config {
         server_address: String,
         token: String,
         backup_servers: Option<Vec<String>>,
+        interval: Option<u32>,
     }
 
     #[derive(Serialize, Deserialize)]
@@ -245,6 +246,10 @@ pub(crate) mod config {
             } else {
                 Ok(())
             }
+        }
+
+        pub fn get_interval(&self) -> u64 {
+            self.config.server.interval.clone().unwrap_or(300) as u64
         }
     }
 }
