@@ -62,13 +62,14 @@ async fn async_switch() -> anyhow::Result<()> {
     let args = clap::App::new("probe-client")
         .version(session::CLIENT_VERSION)
         .arg(
-            clap::Arg::with_name("retrieve")
-                .long("server")
+            clap::Arg::with_name("server_address")
+                .short("r")
+                .long("retrieve")
                 .help("retrieve configure from specify remote server")
                 .takes_value(true),
         )
         .get_matches();
-    if let Some(server_addr) = args.value_of("retrieve") {
+    if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_config(server_addr).await
     }
     async_main(Session::new("data/probe_client.toml")?).await
