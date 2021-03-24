@@ -47,7 +47,6 @@ pub(crate) mod config {
         pub token: String,
     }
 
-
     #[derive(Serialize, Deserialize)]
     pub struct RegisterData {
         pub hostname: String,

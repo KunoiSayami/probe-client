@@ -17,16 +17,16 @@
  ** You should have received a copy of the GNU Affero General Public License
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-#![feature(never_type)]
 mod configparser;
 mod info;
 mod session;
 
-use log::error;
-use std::time::Duration;
 use crate::session::Session;
+use log::{error, info};
+use std::io::Write;
+use std::time::Duration;
 
-async fn async_main(session: Session) -> anyhow::Result<!> {
+async fn async_main(session: Session) -> anyhow::Result<()> {
     let interval = session.get_interval();
     session.init_connection().await?;
     loop {
@@ -39,14 +39,48 @@ async fn async_main(session: Session) -> anyhow::Result<!> {
     }
 }
 
-fn main() -> anyhow::Result<!> {
+async fn retrieve_config(sever_address: &str) -> anyhow::Result<()> {
+    let client = reqwest::ClientBuilder::new()
+        .user_agent(format!("probe_client_{}", session::CLIENT_VERSION))
+        .build()?;
+
+    let r = client.post(sever_address).send().await?;
+
+    let response = r.text().await?;
+
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .open("data/probe_client.toml")?;
+
+    file.write_all(response.as_bytes())?;
+    file.sync_all()?;
+    info!("Write configure completed");
+    Ok(())
+}
+
+async fn async_switch() -> anyhow::Result<()> {
+    let args = clap::App::new("probe-client")
+        .version(session::CLIENT_VERSION)
+        .arg(
+            clap::Arg::with_name("retrieve")
+                .long("server")
+                .help("retrieve configure from specify remote server")
+                .takes_value(true),
+        )
+        .get_matches();
+    if let Some(server_addr) = args.value_of("retrieve") {
+        return retrieve_config(server_addr).await
+    }
+    async_main(Session::new("data/probe_client.toml")?).await
+}
+
+fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(Session::new(
-            "data/probe_client.toml",
-        )?))?;
+        .block_on(async_switch())?;
+    Ok(())
 }

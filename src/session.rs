@@ -18,18 +18,16 @@
  ** along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 use crate::configparser::config::Configure;
+use crate::configparser::config::*;
+use crate::session::response::JsonResponse;
 use anyhow::Result;
-use std::path::Path;
+use log::info;
 use reqwest::header::HeaderMap;
 use std::collections::HashMap;
-use log::{info};
-use crate::configparser::config::*;
+use std::path::Path;
 use systemstat::Platform;
-use crate::session::response::JsonResponse;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-
 
 mod response {
     use serde_derive::{Deserialize, Serialize};
@@ -92,7 +90,6 @@ mod response {
         }
     }
 }
-
 
 pub struct Session {
     config: Configure,
@@ -163,18 +160,14 @@ impl Session {
         Ok(self.client.post(url).json(data).send().await?)
     }
 
-    pub async fn send_data(
-        &self,
-        action: &str,
-        body: Option<String>,
-    ) -> Result<reqwest::Response> {
+    pub async fn send_data(&self, action: &str, body: Option<String>) -> Result<reqwest::Response> {
         let mut data: HashMap<String, String> = Default::default();
         for item in [
             ("version", CLIENT_VERSION),
             ("action", action),
             ("uuid", &self.config.identification.as_ref().unwrap().token),
         ]
-            .iter()
+        .iter()
         {
             data.insert((*item.0).to_string(), (*item.1).to_string());
         }
