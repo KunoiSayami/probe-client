@@ -20,10 +20,11 @@
 #![feature(never_type)]
 mod configparser;
 mod info;
+mod session;
 
-use configparser::config::Session;
 use log::error;
 use std::time::Duration;
+use crate::session::Session;
 
 async fn async_main(session: Session) -> anyhow::Result<!> {
     let interval = session.get_interval();
@@ -45,7 +46,7 @@ fn main() -> anyhow::Result<!> {
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(configparser::config::Session::new(
+        .block_on(async_main(Session::new(
             "data/probe_client.toml",
         )?))?;
 }
