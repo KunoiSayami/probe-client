@@ -26,6 +26,7 @@ use reqwest::header::HeaderMap;
 use std::collections::HashMap;
 use std::path::Path;
 use systemstat::Platform;
+use std::time::Duration;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -124,6 +125,8 @@ impl Session {
         let client = reqwest::ClientBuilder::new()
             .default_headers(header_map)
             .redirect(reqwest::redirect::Policy::default())
+            .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(5))
             .build()?;
 
         Ok(Session { config, client })

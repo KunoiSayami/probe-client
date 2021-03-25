@@ -23,8 +23,8 @@ mod session;
 
 use crate::session::Session;
 use log::{error, info};
-use std::io::Write;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt as _;
 
 async fn async_main(session: Session) -> anyhow::Result<()> {
     let interval = session.get_interval();
@@ -39,7 +39,8 @@ async fn async_main(session: Session) -> anyhow::Result<()> {
     }
 }
 
-async fn retrieve_config(sever_address: &str) -> anyhow::Result<()> {
+async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
+    info!("retrieve configure from server");
     let client = reqwest::ClientBuilder::new()
         .user_agent(format!("probe_client_{}", session::CLIENT_VERSION))
         .build()?;
@@ -48,12 +49,13 @@ async fn retrieve_config(sever_address: &str) -> anyhow::Result<()> {
 
     let response = r.text().await?;
 
-    let mut file = std::fs::OpenOptions::new()
+    let mut file = tokio::fs::OpenOptions::new()
         .create(true)
-        .open("data/probe_client.toml")?;
+        .open("data/probe_client.toml")
+        .await?;
 
-    file.write_all(response.as_bytes())?;
-    file.sync_all()?;
+    file.write_all(response.as_bytes()).await?;
+    file.sync_all().await?;
     info!("Write configure completed");
     Ok(())
 }
@@ -70,7 +72,7 @@ async fn async_switch() -> anyhow::Result<()> {
         )
         .get_matches();
     if let Some(server_addr) = args.value_of("server_address") {
-        return retrieve_config(server_addr).await
+        return retrieve_configure(server_addr).await
     }
     async_main(Session::new("data/probe_client.toml")?).await
 }
