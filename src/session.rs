@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use systemstat::Platform;
 use std::time::Duration;
+use std::fmt::Formatter;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -95,6 +96,23 @@ mod response {
 pub struct Session {
     config: Configure,
     client: reqwest::Client,
+}
+
+#[derive(Debug)]
+pub struct ExitProcessRequest {}
+
+impl std::error::Error for ExitProcessRequest {}
+
+impl std::fmt::Display for ExitProcessRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Request exit process immediately")
+    }
+}
+
+impl ExitProcessRequest {
+    fn new() -> Self {
+        Self {}
+    }
 }
 
 impl Session {
@@ -211,6 +229,11 @@ impl Session {
     async fn check_response(response: reqwest::Response) -> Result<()> {
         let j: JsonResponse = response.json().await?;
         if j.get_status_code() != 200 {
+            if let Some(code) = j.get_error_code() {
+                if code == 1 || code == 4 /* Reversed */ {
+                    return Err(anyhow::Error::from(ExitProcessRequest::new()))
+                }
+            }
             Err(anyhow::Error::new(j.to_error()))
         } else {
             Ok(())

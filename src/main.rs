@@ -22,7 +22,7 @@ mod info;
 mod session;
 
 use crate::session::Session;
-use log::{error, info};
+use log::{error, info, warn};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
 
@@ -31,12 +31,17 @@ async fn async_main(session: Session) -> anyhow::Result<()> {
     session.init_connection().await?;
     loop {
         if let Err(e) = session.send_heartbeat().await {
+            if e.is::<session::ExitProcessRequest>() {
+                warn!("Got exit process request, break loop now");
+                break
+            }
             error!("Got error in send heartbeat: {:?}", e);
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
+    Ok(())
 }
 
 async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
