@@ -38,6 +38,7 @@ mod response {
     #[derive(Serialize, Deserialize)]
     pub struct JsonResponse {
         status: i64,
+        #[deprecated(since= "1.5.0")]
         error_code: Option<i64>,
         message: Option<String>,
     }
@@ -45,10 +46,6 @@ mod response {
     impl JsonResponse {
         pub fn get_status_code(&self) -> i64 {
             self.status
-        }
-
-        pub fn get_error_code(&self) -> Option<i64> {
-            self.error_code
         }
 
         pub fn get_additional_message(&self) -> Option<String> {
@@ -84,9 +81,7 @@ mod response {
     impl From<&JsonResponse> for Error {
         fn from(resp: &JsonResponse) -> Self {
             Error {
-                code: resp
-                    .get_error_code()
-                    .unwrap_or_else(|| resp.get_status_code()),
+                code: resp.get_status_code(),
                 message: resp.get_additional_message(),
             }
         }
@@ -228,19 +223,14 @@ impl Session {
 
     async fn check_response(response: reqwest::Response) -> Result<()> {
         let j: JsonResponse = response.json().await?;
-        if j.get_status_code() != 200 {
-            if let Some(code) = j.get_error_code() {
-                if code == 1 || code == 4 /* Reversed */ {
-                    return Err(anyhow::Error::from(ExitProcessRequest::new()))
-                }
-            }
-            Err(anyhow::Error::new(j.to_error()))
-        } else {
-            Ok(())
+        match j.get_status_code() {
+            200 => Ok(()),
+            4000 | 4002 => Err(anyhow::Error::new(ExitProcessRequest::new())),
+            _ => Err(anyhow::Error::new(j.to_error()))
         }
     }
 
     pub fn get_interval(&self) -> u64 {
-        self.config.server.interval.clone().unwrap_or(300) as u64
+        self.config.server.interval.clone().unwrap_or(450) as u64
     }
 }
