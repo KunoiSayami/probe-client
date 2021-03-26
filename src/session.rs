@@ -100,19 +100,31 @@ pub struct Session {
 }
 
 #[derive(Debug)]
-pub struct ExitProcessRequest {}
+pub struct ExitProcessRequest {
+    status_code: i64,
+    message: String
+}
 
 impl std::error::Error for ExitProcessRequest {}
 
 impl std::fmt::Display for ExitProcessRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Request exit process immediately")
+        write!(f, "Request exit process immediately (code: {}, message: {})", self.status_code, self.message)
     }
 }
 
 impl ExitProcessRequest {
-    fn new() -> Self {
-        Self {}
+    fn new<T: Into<String>>(status_code: i64, message: T) -> Self {
+        Self {
+            status_code,
+            message: message.into()
+        }
+    }
+}
+
+impl From<&JsonResponse> for ExitProcessRequest {
+    fn from(j: &JsonResponse) -> Self {
+        Self::new(j.get_status_code(), j.get_additional_message().unwrap_or_else(|| "No additional message".to_string()))
     }
 }
 
@@ -234,11 +246,11 @@ impl Session {
         let j: JsonResponse = response.json().await?;
 
         if !self.server_version.is_empty() && !self.server_version.eq(self.server_version.as_str()) {
-            return Err(anyhow::Error::new(ExitProcessRequest::new()))
+            return Err(anyhow::Error::new(ExitProcessRequest::new(1, format!("Server version mismatch, except {} but {} found", &self.server_version, j.get_server_version()))))
         }
         match j.get_status_code() {
             200 => Ok(j),
-            4031 | 4002 => Err(anyhow::Error::new(ExitProcessRequest::new())),
+            4031 | 4002 | 4000 => Err(anyhow::Error::new(ExitProcessRequest::from(&j))),
             _ => Err(anyhow::Error::new(j.to_error()))
         }
     }
