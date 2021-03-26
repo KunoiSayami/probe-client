@@ -37,6 +37,7 @@ mod response {
 
     #[derive(Serialize, Deserialize)]
     pub struct JsonResponse {
+        version: String,
         status: i64,
         #[deprecated(since= "1.5.0")]
         error_code: Option<i64>,
@@ -54,6 +55,10 @@ mod response {
 
         pub fn to_error(&self) -> Error {
             Error::from(self)
+        }
+
+        pub fn get_server_version(&self) -> &String {
+            &self.version
         }
     }
 
@@ -91,6 +96,7 @@ mod response {
 pub struct Session {
     config: Configure,
     client: reqwest::Client,
+    server_version: String,
 }
 
 #[derive(Debug)]
@@ -142,7 +148,7 @@ impl Session {
             .connect_timeout(Duration::from_secs(5))
             .build()?;
 
-        Ok(Session { config, client })
+        Ok(Session { config, client, server_version: "".to_string() })
     }
 
     pub async fn post(&self, data: &HashMap<String, String>) -> Result<reqwest::Response> {
@@ -193,7 +199,7 @@ impl Session {
         self.post(&data).await
     }
 
-    pub async fn init_connection(&self) -> Result<()> {
+    pub async fn init_connection(&mut self) -> Result<()> {
         let system = systemstat::System::new();
 
         let data = RegisterData {
@@ -204,7 +210,9 @@ impl Session {
         let resp = self
             .send_data("register", Some(serde_json::to_string(&data)?))
             .await?;
-        Session::check_response(resp).await
+        let rep = self.check_response(resp).await?;
+        self.server_version = rep.get_server_version().clone();
+        Ok(())
     }
 
     pub async fn send_heartbeat(&self) -> Result<()> {
@@ -218,13 +226,18 @@ impl Session {
                 },
             )
             .await?;
-        Session::check_response(resp).await
+        self.check_response(resp).await?;
+        Ok(())
     }
 
-    async fn check_response(response: reqwest::Response) -> Result<()> {
+    async fn check_response(&self, response: reqwest::Response) -> Result<JsonResponse> {
         let j: JsonResponse = response.json().await?;
+
+        if !self.server_version.is_empty() && !self.server_version.eq(self.server_version.as_str()) {
+            return Err(anyhow::Error::new(ExitProcessRequest::new()))
+        }
         match j.get_status_code() {
-            200 => Ok(()),
+            200 => Ok(j),
             4031 | 4002 => Err(anyhow::Error::new(ExitProcessRequest::new())),
             _ => Err(anyhow::Error::new(j.to_error()))
         }

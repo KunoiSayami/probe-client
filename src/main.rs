@@ -28,7 +28,6 @@ use tokio::io::AsyncWriteExt as _;
 
 async fn async_main(session: Session) -> anyhow::Result<()> {
     let interval = session.get_interval();
-    session.init_connection().await?;
     loop {
         if let Err(e) = session.send_heartbeat().await {
             if e.is::<session::ExitProcessRequest>() {
@@ -78,7 +77,9 @@ async fn async_switch() -> anyhow::Result<()> {
     if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_configure(server_addr).await
     }
-    async_main(Session::new("data/probe_client.toml")?).await
+    let mut session = Session::new("data/probe_client.toml")?;
+    session.init_connection().await?;
+    async_main(session).await
 }
 
 fn main() -> anyhow::Result<()> {
