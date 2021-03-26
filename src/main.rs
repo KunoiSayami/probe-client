@@ -33,7 +33,7 @@ async fn async_main(session: Session) -> anyhow::Result<()> {
         if let Err(e) = session.send_heartbeat().await {
             if e.is::<session::ExitProcessRequest>() {
                 warn!("Got exit process request, break loop now");
-                break
+                break Err(e)
             }
             error!("Got error in send heartbeat: {:?}", e);
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -41,7 +41,6 @@ async fn async_main(session: Session) -> anyhow::Result<()> {
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
-    Ok(())
 }
 
 async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
@@ -84,6 +83,7 @@ async fn async_switch() -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     env_logger::init();
+    info!("Client version: {}", session::CLIENT_VERSION);
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

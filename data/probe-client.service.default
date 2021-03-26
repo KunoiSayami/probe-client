@@ -1,0 +1,14 @@
+[Unit]
+Description=Probe client Service
+
+[Service]
+Type=simple
+Environment="RUST_LOG=info"
+Restart=always
+RestartSec=10s
+ExecStart=/opt/probe-client/target/release/probe-client
+WorkingDirectory=/opt/probe-client
+DynamicUser=yes
+
+[Install]
+WantedBy=default.target

@@ -225,7 +225,7 @@ impl Session {
         let j: JsonResponse = response.json().await?;
         match j.get_status_code() {
             200 => Ok(()),
-            4000 | 4002 => Err(anyhow::Error::new(ExitProcessRequest::new())),
+            4031 | 4002 => Err(anyhow::Error::new(ExitProcessRequest::new())),
             _ => Err(anyhow::Error::new(j.to_error()))
         }
     }
