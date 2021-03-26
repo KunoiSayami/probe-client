@@ -4,11 +4,13 @@ Description=Probe client Service
 [Service]
 Type=simple
 Environment="RUST_LOG=info"
-Restart=always
+Restart=on-failure
 RestartSec=10s
 ExecStart=/opt/probe-client/target/release/probe-client
 WorkingDirectory=/opt/probe-client
 DynamicUser=yes
+KillSignal=SIGINT
+TimeoutStartSec=2
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

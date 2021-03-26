@@ -25,8 +25,9 @@ use crate::session::Session;
 use log::{error, info, warn};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
+use tokio::sync::oneshot;
 
-async fn async_main(session: Session) -> anyhow::Result<()> {
+async fn async_main(session: Session, mut rx: oneshot::Receiver<()>) -> anyhow::Result<()> {
     let interval = session.get_interval();
     loop {
         if let Err(e) = session.send_heartbeat().await {
@@ -35,10 +36,14 @@ async fn async_main(session: Session) -> anyhow::Result<()> {
                 break Err(e)
             }
             error!("Got error in send heartbeat: {:?}", e);
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            if tokio::time::timeout(Duration::from_secs(5), &mut rx).await.is_ok() {
+                break Ok(())
+            }
             continue;
         }
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+        if tokio::time::timeout(Duration::from_secs(interval), &mut rx).await.is_ok() {
+            break Ok(())
+        }
     }
 }
 
@@ -77,9 +82,13 @@ async fn async_switch() -> anyhow::Result<()> {
     if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_configure(server_addr).await
     }
+    let (tx, rx) = oneshot::channel();
     let mut session = Session::new("data/probe_client.toml")?;
     session.init_connection().await?;
-    async_main(session).await
+    let task = tokio::task::spawn(async_main(session, rx));
+    tokio::signal::ctrl_c().await?;
+    tx.send(()).ok();
+    task.await?
 }
 
 fn main() -> anyhow::Result<()> {

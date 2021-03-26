@@ -223,7 +223,11 @@ impl Session {
             .send_data("register", Some(serde_json::to_string(&data)?))
             .await?;
         let rep = self.check_response(resp).await?;
-        self.server_version = rep.get_server_version().clone();
+        if let Some(v) = self.config.server.check_server_version {
+            if v {
+                self.server_version = rep.get_server_version().clone();
+            }
+        }
         Ok(())
     }
 

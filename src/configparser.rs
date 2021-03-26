@@ -35,6 +35,7 @@ pub(crate) mod config {
         pub token: String,
         pub backup_servers: Option<Vec<String>>,
         pub interval: Option<u32>,
+        pub check_server_version: Option<bool>,
     }
 
     #[derive(Serialize, Deserialize)]
