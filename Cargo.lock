@@ -703,7 +703,7 @@ checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
 name = "probe-client"
-version = "1.6.2"
+version = "1.6.3"
 dependencies = [
  "anyhow",
  "clap",

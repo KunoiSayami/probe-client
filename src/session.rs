@@ -30,6 +30,7 @@ use std::time::Duration;
 use std::fmt::Formatter;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const DEFAULT_INTERVAL: u32 = 180;
 
 mod response {
     use serde_derive::{Deserialize, Serialize};
@@ -129,8 +130,8 @@ impl From<&JsonResponse> for ExitProcessRequest {
 }
 
 impl Session {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Session> {
-        let contents = std::fs::read_to_string(&path)?;
+    pub async fn new<P: AsRef<Path>>(path: P) -> Result<Session> {
+        let contents = tokio::fs::read_to_string(&path).await?;
         let contents_str = contents.as_str();
 
         let mut config: Configure = toml::from_str(contents_str)?;
@@ -145,7 +146,7 @@ impl Session {
                 "Generate new uuid identification token: {}",
                 config.identification.clone().unwrap().token
             );
-            std::fs::write(&path, toml::to_string(&config)?)?;
+            tokio::fs::write(&path, toml::to_string(&config)?).await?;
         }
 
         header_map.append(
@@ -260,6 +261,6 @@ impl Session {
     }
 
     pub fn get_interval(&self) -> u64 {
-        self.config.server.interval.clone().unwrap_or(450) as u64
+        self.config.server.interval.clone().unwrap_or(DEFAULT_INTERVAL) as u64
     }
 }

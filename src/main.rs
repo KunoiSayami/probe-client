@@ -83,7 +83,7 @@ async fn async_switch() -> anyhow::Result<()> {
         return retrieve_configure(server_addr).await
     }
     let (tx, rx) = oneshot::channel();
-    let mut session = Session::new("data/probe_client.toml")?;
+    let mut session = Session::new("data/probe_client.toml").await?;
     session.init_connection().await?;
     let task = tokio::task::spawn(async_main(session, rx));
     tokio::signal::ctrl_c().await?;
