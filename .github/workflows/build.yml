@@ -27,3 +27,9 @@ jobs:
         with:
           command: build
           args: --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: artifact
+          path: |
+            target/release/probe-client
+            target/release/probe-client.exe

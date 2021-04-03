@@ -1,4 +1,4 @@
-name: Build cross
+name: Build cross binary
 
 on:
   - push
@@ -13,8 +13,13 @@ jobs:
           toolchain: stable
           target: aarch64-unknown-linux-musl
           override: true
-      - uses: actions-rs/cargo@v1
+      - name: Build aarch 64 binary
+        uses: actions-rs/cargo@v1
         with:
           use-cross: true
           command: build
           args: --target aarch64-unknown-linux-musl --release
+      - uses: actions/upload-artifact@v2
+        with:
+          name: aarch64-artifact
+          path: target/release/probe-client
