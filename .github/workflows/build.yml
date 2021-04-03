@@ -28,17 +28,29 @@ jobs:
           command: build
           args: --release
       - name: Rename binary
+        id: rename
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            mv target/release/probe-client target/release/probe-client.linux.out
+            BIN='probe-client.linux'
+            mv target/release/probe-client target/release/$BIN
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            mv target/release/probe-client target/release/probe-client.macos.out
+            BIN='probe-client.darwin'
+            mv target/release/probe-client target/release/$BIN
+          else
+            BIN='probe-client.exe'
           fi
       - uses: actions/upload-artifact@v2
         with:
           name: artifact
           path: |
             target/release/probe-client.linux
-            target/release/probe-client.macos
+            target/release/probe-client.darwin
             target/release/probe-client.exe
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.rename.output.BIN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

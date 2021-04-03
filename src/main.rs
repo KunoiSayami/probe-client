@@ -90,7 +90,8 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
                 continue
             }
             Err(e) => {
-                error!("Got other error {:?}", e)
+                error!("Got other error {:?}", e);
+                break
             }
         }
     }
