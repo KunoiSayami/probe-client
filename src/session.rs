@@ -24,13 +24,39 @@ use anyhow::Result;
 use log::info;
 use reqwest::header::HeaderMap;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path};
 use systemstat::Platform;
 use std::time::Duration;
 use std::fmt::Formatter;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_INTERVAL: u32 = 180;
+pub const MAX_RETRY_TIMES: i32 = 3;
+
+pub mod error {
+    use std::fmt::Formatter;
+
+    #[derive(Debug)]
+    pub struct TooManyRetriesError {
+        e: anyhow::Error
+    }
+
+    impl std::error::Error for TooManyRetriesError {
+
+    }
+
+    impl std::fmt::Display for TooManyRetriesError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Max retry times exceed! last error: {:?}", self.e)
+        }
+    }
+
+    impl TooManyRetriesError {
+        pub fn new(e: anyhow::Error) -> anyhow::Error {
+            anyhow::Error::new(TooManyRetriesError {e})
+        }
+    }
+}
 
 mod response {
     use serde_derive::{Deserialize, Serialize};
@@ -94,10 +120,54 @@ mod response {
     }
 }
 
+pub struct ServerAddress {
+    address: Vec<String>,
+    current_loc: usize
+}
+
+impl ServerAddress {
+    fn new(cfg: &Configure) -> Self {
+        let mut adr = vec![cfg.server.server_address.clone()];
+        if let Some(servers) = cfg.server.backup_servers.clone() {
+            adr.append(&mut servers.clone())
+        }
+        Self {
+            address: adr,
+            current_loc: usize::MAX
+        }
+    }
+
+    fn get(&self) -> Option<&String> {
+        if self.current_loc < self.len() && self.current_loc > 0{
+            Some(&self.address[self.current_loc])
+        } else {
+            None
+        }
+    }
+
+    fn get_unwrap(&self) -> &String {
+        self.get().unwrap()
+    }
+
+    fn next(&mut self) -> Option<&String> {
+        if self.current_loc == usize::MAX {
+            self.current_loc = 0;
+        } else {
+            self.current_loc += 1;
+        }
+        self.get()
+    }
+
+    fn len(&self) -> usize {
+        self.address.len()
+    }
+}
+
 pub struct Session {
     config: Configure,
     client: reqwest::Client,
     server_version: String,
+    server_address: ServerAddress,
 }
 
 #[derive(Debug)]
@@ -160,31 +230,19 @@ impl Session {
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()?;
+        let server_address = ServerAddress::new(&config);
 
-        Ok(Session { config, client, server_version: "".to_string() })
+        Ok(Session { config, client, server_version: "".to_string() , server_address})
     }
 
     pub async fn post(&self, data: &HashMap<String, String>) -> Result<reqwest::Response> {
-        match self
-            .post_data_to_url(&self.config.server.server_address, data)
+        self
+            .post_data_to_url(self.server_address.get_unwrap(), data)
             .await
-        {
-            Ok(resp) => Ok(resp),
-            Err(e) => {
-                if let Some(servers) = &self.config.server.backup_servers {
-                    let mut rt_value: Result<reqwest::Response> = Err(e);
-                    for url in servers {
-                        match self.post_data_to_url(url, data).await {
-                            Ok(resp) => rt_value = Ok(resp),
-                            Err(e) => rt_value = Err(e),
-                        }
-                    }
-                    rt_value
-                } else {
-                    Err(e)
-                }
-            }
-        }
+    }
+
+    pub fn call_next(&mut self) -> Option<&String> {
+        self.server_address.next()
     }
 
     async fn post_data_to_url(

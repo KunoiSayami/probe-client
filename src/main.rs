@@ -21,14 +21,20 @@ mod configparser;
 mod info;
 mod session;
 
-use crate::session::Session;
+use crate::session::{Session, MAX_RETRY_TIMES};
 use log::{error, info, warn};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
-use tokio::sync::oneshot;
+use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-async fn async_main(session: Session, mut rx: oneshot::Receiver<()>) -> anyhow::Result<()> {
+use crate::session::error::TooManyRetriesError;
+
+async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> anyhow::Result<()> {
     let interval = session.get_interval();
+    let mut rx = rx.lock().await;
+    let mut times = 0;
     loop {
         if let Err(e) = session.send_heartbeat().await {
             if e.is::<session::ExitProcessRequest>() {
@@ -36,14 +42,19 @@ async fn async_main(session: Session, mut rx: oneshot::Receiver<()>) -> anyhow::
                 break Err(e)
             }
             error!("Got error in send heartbeat: {:?}", e);
-            if tokio::time::timeout(Duration::from_secs(5), &mut rx).await.is_ok() {
+            if tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.is_ok() {
                 break Ok(())
             }
+            if times > MAX_RETRY_TIMES {
+                break Err(TooManyRetriesError::new(e))
+            }
+            times += 1;
             continue;
         }
-        if tokio::time::timeout(Duration::from_secs(interval), &mut rx).await.is_ok() {
+        if tokio::time::timeout(Duration::from_secs(interval), rx.recv()).await.is_ok() {
             break Ok(())
         }
+        times = 0;
     }
 }
 
@@ -68,6 +79,24 @@ async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Result<()> {
+    let arx = Arc::new(Mutex::new(rx));
+    while let Some(_) = session.call_next() {
+        session.init_connection().await?;
+        match post_main(&session, arx.clone()).await {
+            Ok(()) => break,
+            Err(e) if e.is::<TooManyRetriesError>() => {
+                error!("{:?}", e);
+                continue
+            }
+            Err(e) => {
+                error!("Got other error {:?}", e)
+            }
+        }
+    }
+    Ok(())
+}
+
 async fn async_switch() -> anyhow::Result<()> {
     let args = clap::App::new("probe-client")
         .version(session::CLIENT_VERSION)
@@ -82,12 +111,11 @@ async fn async_switch() -> anyhow::Result<()> {
     if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_configure(server_addr).await
     }
-    let (tx, rx) = oneshot::channel();
-    let mut session = Session::new("data/probe_client.toml").await?;
-    session.init_connection().await?;
+    let (tx, rx) = mpsc::channel(64);
+    let session = Session::new("data/probe_client.toml").await?;
     let task = tokio::task::spawn(async_main(session, rx));
     tokio::signal::ctrl_c().await?;
-    tx.send(()).ok();
+    tx.send(()).await.ok();
     task.await?
 }
 
