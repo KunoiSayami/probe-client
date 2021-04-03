@@ -61,7 +61,7 @@ async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> any
 async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
     info!("retrieve configure from server");
     let client = reqwest::ClientBuilder::new()
-        .user_agent(format!("probe_client_{}", session::CLIENT_VERSION))
+        .user_agent(format!("probe_client {}", session::CLIENT_VERSION))
         .build()?;
 
     let r = client.post(sever_address).send().await?;
