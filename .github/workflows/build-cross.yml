@@ -22,4 +22,4 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: aarch64-artifact
-          path: target/release/probe-client
+          path: target/aarch64-unknown-linux-musl/probe-client
