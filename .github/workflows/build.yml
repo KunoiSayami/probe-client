@@ -40,7 +40,7 @@ jobs:
           else
             BIN='probe-client.exe'
           fi
-          echo "::set-output name=bin::$BIN"
+          echo "::set-output name=bin::target/release/$BIN"
       - uses: actions/upload-artifact@v2
         with:
           name: artifact
