@@ -138,7 +138,7 @@ impl ServerAddress {
     }
 
     fn get(&self) -> Option<&String> {
-        if self.current_loc < self.len() && self.current_loc > 0{
+        if self.current_loc < self.len() {
             Some(&self.address[self.current_loc])
         } else {
             None

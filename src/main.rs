@@ -79,12 +79,16 @@ async fn retrieve_configure(sever_address: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Result<()> {
+async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Result<bool> {
     let arx = Arc::new(Mutex::new(rx));
+    let mut return_value = false;
     while let Some(_) = session.call_next() {
         session.init_connection().await?;
         match post_main(&session, arx.clone()).await {
-            Ok(()) => break,
+            Ok(()) => {
+                return_value = true;
+                break
+            },
             Err(e) if e.is::<TooManyRetriesError>() => {
                 error!("{:?}", e);
                 continue
@@ -94,7 +98,14 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
                 break
             }
         }
-    }
+    };
+    log::debug!("exit");
+    Ok(return_value)
+}
+
+async fn wait_ctrl_c(tx: mpsc::Sender<()>) -> anyhow::Result<()> {
+    tokio::signal::ctrl_c().await?;
+    tx.send(()).await.ok();
     Ok(())
 }
 
@@ -115,9 +126,23 @@ async fn async_switch() -> anyhow::Result<()> {
     let (tx, rx) = mpsc::channel(64);
     let session = Session::new("data/probe_client.toml").await?;
     let task = tokio::task::spawn(async_main(session, rx));
-    tokio::signal::ctrl_c().await?;
-    tx.send(()).await.ok();
-    task.await?
+    let ctrl_c_task = tokio::task::spawn(wait_ctrl_c(tx));
+    let result = task.await??;
+    if ! result {
+        ctrl_c_task.abort();
+    }
+    match ctrl_c_task.await {
+        Ok(r) => {
+            if let Err(e) = r {
+                error!("Got error while handle ctrl_c event: {:?}", e)
+            }
+        }
+        Err(e) if ! e.is_cancelled() => {
+            error!("Got error while join task: {:?}", e);
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
