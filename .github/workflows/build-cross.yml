@@ -1,7 +1,10 @@
 name: Build cross binary
 
 on:
-  - push
+  push:
+    tags-ignore:
+      - test*
+  pull_request:
 
 jobs:
   build_aarch64:

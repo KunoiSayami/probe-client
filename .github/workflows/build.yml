@@ -1,7 +1,10 @@
-name: Build release
+name: Build binary
 
 on:
-  - push
+  push:
+    tags-ignore:
+      - test*
+  pull_request:
 
 jobs:
   build:
@@ -32,22 +35,21 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
-            BIN='probe-client.linux'
+            BIN='probe-client_linux_amd64'
             mv target/release/probe-client target/release/$BIN
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            BIN='probe-client.darwin'
+            BIN='probe-client_darwin_amd64'
             mv target/release/probe-client target/release/$BIN
           else
-            BIN='probe-client.exe'
+            BIN='probe-client_windows_amd64.exe'
+            mv target/release/probe-client.exe target/release/$BIN
           fi
           echo "::set-output name=bin::target/release/$BIN"
       - uses: actions/upload-artifact@v2
         with:
           name: artifact
           path: |
-            target/release/probe-client.linux
-            target/release/probe-client.darwin
-            target/release/probe-client.exe
+            target/release/probe-client_*
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
