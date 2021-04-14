@@ -91,11 +91,14 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
             },
             Err(e) if e.is::<TooManyRetriesError>() => {
                 error!("{:?}", e);
+                if session.check_is_last() {
+                    return Err(e)
+                }
                 continue
             }
             Err(e) => {
                 error!("Got other error {:?}", e);
-                break
+                return Err(e)
             }
         }
     };
@@ -123,6 +126,7 @@ async fn async_switch() -> anyhow::Result<()> {
     if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_configure(server_addr).await
     }
+    info!("Client version: {}", session::CLIENT_VERSION);
     let (tx, rx) = mpsc::channel(64);
     let session = Session::new("data/probe_client.toml").await?;
     let task = tokio::task::spawn(async_main(session, rx));
@@ -147,7 +151,6 @@ async fn async_switch() -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     env_logger::init();
-    info!("Client version: {}", session::CLIENT_VERSION);
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -158,6 +158,10 @@ impl ServerAddress {
         self.get()
     }
 
+    fn check_is_last(&self) -> bool {
+        self.current_loc + 1 == self.address.len()
+    }
+
     fn len(&self) -> usize {
         self.address.len()
     }
@@ -243,6 +247,10 @@ impl Session {
 
     pub fn call_next(&mut self) -> Option<&String> {
         self.server_address.next()
+    }
+
+    pub fn check_is_last(&self) -> bool {
+        self.server_address.check_is_last()
     }
 
     async fn post_data_to_url(
