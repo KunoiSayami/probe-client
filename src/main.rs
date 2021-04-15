@@ -102,7 +102,6 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
             }
         }
     };
-    log::debug!("exit");
     Ok(return_value)
 }
 
