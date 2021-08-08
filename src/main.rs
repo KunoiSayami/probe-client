@@ -23,10 +23,10 @@ mod session;
 
 use crate::session::{Session, MAX_RETRY_TIMES};
 use log::{error, info, warn};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
 use tokio::sync::mpsc;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::session::error::TooManyRetriesError;
@@ -39,20 +39,26 @@ async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> any
         if let Err(e) = session.send_heartbeat().await {
             if e.is::<session::ExitProcessRequest>() {
                 warn!("Got exit process request, break loop now");
-                break Err(e)
+                break Err(e);
             }
             error!("Got error in send heartbeat: {:?}", e);
-            if tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.is_ok() {
-                break Ok(())
+            if tokio::time::timeout(Duration::from_secs(5), rx.recv())
+                .await
+                .is_ok()
+            {
+                break Ok(());
             }
             if times > MAX_RETRY_TIMES {
-                break Err(TooManyRetriesError::new(e))
+                break Err(TooManyRetriesError::new(e));
             }
             times += 1;
             continue;
         }
-        if tokio::time::timeout(Duration::from_secs(interval), rx.recv()).await.is_ok() {
-            break Ok(())
+        if tokio::time::timeout(Duration::from_secs(interval), rx.recv())
+            .await
+            .is_ok()
+        {
+            break Ok(());
         }
         times = 0;
     }
@@ -87,21 +93,21 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
         match post_main(&session, arx.clone()).await {
             Ok(()) => {
                 return_value = true;
-                break
-            },
+                break;
+            }
             Err(e) if e.is::<TooManyRetriesError>() => {
                 error!("{:?}", e);
                 if session.check_is_last() {
-                    return Err(e)
+                    return Err(e);
                 }
-                continue
+                continue;
             }
             Err(e) => {
                 error!("Got other error {:?}", e);
-                return Err(e)
+                return Err(e);
             }
         }
-    };
+    }
     Ok(return_value)
 }
 
@@ -123,7 +129,7 @@ async fn async_switch() -> anyhow::Result<()> {
         )
         .get_matches();
     if let Some(server_addr) = args.value_of("server_address") {
-        return retrieve_configure(server_addr).await
+        return retrieve_configure(server_addr).await;
     }
     info!("Client version: {}", session::CLIENT_VERSION);
     let (tx, rx) = mpsc::channel(64);
@@ -131,7 +137,7 @@ async fn async_switch() -> anyhow::Result<()> {
     let task = tokio::task::spawn(async_main(session, rx));
     let ctrl_c_task = tokio::task::spawn(wait_ctrl_c(tx));
     let result = task.await??;
-    if ! result {
+    if !result {
         ctrl_c_task.abort();
     }
     match ctrl_c_task.await {
@@ -140,7 +146,7 @@ async fn async_switch() -> anyhow::Result<()> {
                 error!("Got error while handle ctrl_c event: {:?}", e)
             }
         }
-        Err(e) if ! e.is_cancelled() => {
+        Err(e) if !e.is_cancelled() => {
             error!("Got error while join task: {:?}", e);
         }
         _ => {}

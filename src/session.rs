@@ -24,10 +24,10 @@ use anyhow::Result;
 use log::info;
 use reqwest::header::HeaderMap;
 use std::collections::HashMap;
-use std::path::{Path};
-use systemstat::Platform;
-use std::time::Duration;
 use std::fmt::Formatter;
+use std::path::Path;
+use std::time::Duration;
+use systemstat::Platform;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_INTERVAL: u32 = 180;
@@ -38,12 +38,10 @@ pub mod error {
 
     #[derive(Debug)]
     pub struct TooManyRetriesError {
-        e: anyhow::Error
+        e: anyhow::Error,
     }
 
-    impl std::error::Error for TooManyRetriesError {
-
-    }
+    impl std::error::Error for TooManyRetriesError {}
 
     impl std::fmt::Display for TooManyRetriesError {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -53,7 +51,7 @@ pub mod error {
 
     impl TooManyRetriesError {
         pub fn new(e: anyhow::Error) -> anyhow::Error {
-            anyhow::Error::new(TooManyRetriesError {e})
+            anyhow::Error::new(TooManyRetriesError { e })
         }
     }
 }
@@ -66,7 +64,7 @@ mod response {
     pub struct JsonResponse {
         version: String,
         status: i64,
-        #[deprecated(since= "1.5.0")]
+        #[deprecated(since = "1.5.0")]
         error_code: Option<i64>,
         message: Option<String>,
     }
@@ -122,7 +120,7 @@ mod response {
 
 pub struct ServerAddress {
     address: Vec<String>,
-    current_loc: usize
+    current_loc: usize,
 }
 
 impl ServerAddress {
@@ -133,7 +131,7 @@ impl ServerAddress {
         }
         Self {
             address: adr,
-            current_loc: usize::MAX
+            current_loc: usize::MAX,
         }
     }
 
@@ -177,14 +175,18 @@ pub struct Session {
 #[derive(Debug)]
 pub struct ExitProcessRequest {
     status_code: i64,
-    message: String
+    message: String,
 }
 
 impl std::error::Error for ExitProcessRequest {}
 
 impl std::fmt::Display for ExitProcessRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Request exit process immediately (code: {}, message: {})", self.status_code, self.message)
+        write!(
+            f,
+            "Request exit process immediately (code: {}, message: {})",
+            self.status_code, self.message
+        )
     }
 }
 
@@ -192,14 +194,18 @@ impl ExitProcessRequest {
     fn new<T: Into<String>>(status_code: i64, message: T) -> Self {
         Self {
             status_code,
-            message: message.into()
+            message: message.into(),
         }
     }
 }
 
 impl From<&JsonResponse> for ExitProcessRequest {
     fn from(j: &JsonResponse) -> Self {
-        Self::new(j.get_status_code(), j.get_additional_message().unwrap_or_else(|| "No additional message".to_string()))
+        Self::new(
+            j.get_status_code(),
+            j.get_additional_message()
+                .unwrap_or_else(|| "No additional message".to_string()),
+        )
     }
 }
 
@@ -236,12 +242,16 @@ impl Session {
             .build()?;
         let server_address = ServerAddress::new(&config);
 
-        Ok(Session { config, client, server_version: "".to_string() , server_address})
+        Ok(Session {
+            config,
+            client,
+            server_version: "".to_string(),
+            server_address,
+        })
     }
 
     pub async fn post(&self, data: &HashMap<String, String>) -> Result<reqwest::Response> {
-        self
-            .post_data_to_url(self.server_address.get_unwrap(), data)
+        self.post_data_to_url(self.server_address.get_unwrap(), data)
             .await
     }
 
@@ -316,17 +326,29 @@ impl Session {
     async fn check_response(&self, response: reqwest::Response) -> Result<JsonResponse> {
         let j: JsonResponse = response.json().await?;
 
-        if !self.server_version.is_empty() && !self.server_version.eq(self.server_version.as_str()) {
-            return Err(anyhow::Error::new(ExitProcessRequest::new(1, format!("Server version mismatch, except {} but {} found", &self.server_version, j.get_server_version()))))
+        if !self.server_version.is_empty() && !self.server_version.eq(self.server_version.as_str())
+        {
+            return Err(anyhow::Error::new(ExitProcessRequest::new(
+                1,
+                format!(
+                    "Server version mismatch, except {} but {} found",
+                    &self.server_version,
+                    j.get_server_version()
+                ),
+            )));
         }
         match j.get_status_code() {
             200 => Ok(j),
             4031 | 4002 | 4000 => Err(anyhow::Error::new(ExitProcessRequest::from(&j))),
-            _ => Err(anyhow::Error::new(j.to_error()))
+            _ => Err(anyhow::Error::new(j.to_error())),
         }
     }
 
     pub fn get_interval(&self) -> u64 {
-        self.config.server.interval.clone().unwrap_or(DEFAULT_INTERVAL) as u64
+        self.config
+            .server
+            .interval
+            .clone()
+            .unwrap_or(DEFAULT_INTERVAL) as u64
     }
 }
