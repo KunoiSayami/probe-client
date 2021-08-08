@@ -24,7 +24,7 @@ use anyhow::Result;
 use log::info;
 use reqwest::header::HeaderMap;
 use std::collections::HashMap;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::time::Duration;
 use systemstat::Platform;
@@ -165,11 +165,21 @@ impl ServerAddress {
     }
 }
 
-pub struct Session {
-    config: Configure,
-    client: reqwest::Client,
-    server_version: String,
-    server_address: ServerAddress,
+#[derive(Debug)]
+pub struct ReInitRequest;
+
+impl Display for ReInitRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Request resend init message")
+    }
+}
+
+impl std::error::Error for ReInitRequest {}
+
+impl ReInitRequest {
+    pub fn new() -> Self {
+        ReInitRequest {}
+    }
 }
 
 #[derive(Debug)]
@@ -207,6 +217,13 @@ impl From<&JsonResponse> for ExitProcessRequest {
                 .unwrap_or_else(|| "No additional message".to_string()),
         )
     }
+}
+
+pub struct Session {
+    config: Configure,
+    client: reqwest::Client,
+    server_version: String,
+    server_address: ServerAddress,
 }
 
 impl Session {
@@ -339,7 +356,8 @@ impl Session {
         }
         match j.get_status_code() {
             200 => Ok(j),
-            4031 | 4002 | 4000 => Err(anyhow::Error::new(ExitProcessRequest::from(&j))),
+            4031 => Err(anyhow::Error::new(ReInitRequest::new())),
+            4002 | 4000 => Err(anyhow::Error::new(ExitProcessRequest::from(&j))),
             _ => Err(anyhow::Error::new(j.to_error())),
         }
     }

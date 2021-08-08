@@ -21,7 +21,7 @@ mod configparser;
 mod info;
 mod session;
 
-use crate::session::{Session, MAX_RETRY_TIMES};
+use crate::session::{ReInitRequest, Session, MAX_RETRY_TIMES};
 use log::{error, info, warn};
 use std::sync::Arc;
 use std::time::Duration;
@@ -100,6 +100,10 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
                 if session.check_is_last() {
                     return Err(e);
                 }
+                continue;
+            }
+            Err(e) if e.is::<ReInitRequest>() => {
+                session.init_connection().await?;
                 continue;
             }
             Err(e) => {
