@@ -21,3 +21,8 @@ clap = "2"
 
 [target.aarch64-unknown-linux-musl.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
+
+[profile.release]
+opt-level=3
+lto=true
+panic="abort"
