@@ -131,13 +131,19 @@ async fn async_switch() -> anyhow::Result<()> {
                 .help("retrieve configure from specify remote server")
                 .takes_value(true),
         )
+        .arg(
+            clap::Arg::with_name("cfg")
+                .short("c")
+                .help("Specify configure file location")
+                .takes_value(true),
+        )
         .get_matches();
     if let Some(server_addr) = args.value_of("server_address") {
         return retrieve_configure(server_addr).await;
     }
     info!("Client version: {}", session::CLIENT_VERSION);
     let (tx, rx) = mpsc::channel(64);
-    let session = Session::new("data/probe_client.toml").await?;
+    let session = Session::new(args.value_of("cfg").unwrap_or("data/probe_client.toml")).await?;
     let task = tokio::task::spawn(async_main(session, rx));
     let ctrl_c_task = tokio::task::spawn(wait_ctrl_c(tx));
     let result = task.await??;

@@ -21,7 +21,7 @@ use crate::configparser::config::Configure;
 use crate::configparser::config::*;
 use crate::session::response::JsonResponse;
 use anyhow::Result;
-use log::info;
+use log::{error, info};
 use reqwest::header::HeaderMap;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -228,7 +228,14 @@ pub struct Session {
 
 impl Session {
     pub async fn new<P: AsRef<Path>>(path: P) -> Result<Session> {
-        let contents = tokio::fs::read_to_string(&path).await?;
+        let path = path.as_ref();
+        let contents = match tokio::fs::read_to_string(path).await {
+            Ok(contents) => contents,
+            Err(e) => {
+                error!("Unable open {}, {:?}", path.display(), e);
+                return Err(anyhow::Error::from(e));
+            }
+        };
         let contents_str = contents.as_str();
 
         let mut config: Configure = toml::from_str(contents_str)?;
