@@ -31,15 +31,35 @@ use tokio::sync::Mutex;
 
 use crate::session::error::TooManyRetriesError;
 
+fn get_timeout_sleep(retry_times: u32) -> u64 {
+    5 * 4u64.pow(retry_times) + 10
+}
+
 async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> anyhow::Result<()> {
     let interval = session.get_interval();
     let mut rx = rx.lock().await;
     let mut times = 0;
+    let mut retries = 0;
     loop {
         if let Err(e) = session.send_heartbeat().await {
             if e.is::<session::ExitProcessRequest>() {
                 warn!("Got exit process request, break loop now");
                 break Err(e);
+            }
+            if e.is::<session::error::TimeoutError>() {
+                if retries > 6 {
+                    return Err(TooManyRetriesError::new(e))
+                };
+                let sleep_time = get_timeout_sleep(retries);
+                warn!("Got timeout error, sleep {} seconds", sleep_time);
+                if tokio::time::timeout(Duration::from_secs(sleep_time), rx.recv())
+                    .await
+                    .is_ok()
+                {
+                    break Ok(())
+                }
+                retries += 1;
+                continue
             }
             error!("Got error in send heartbeat: {:?}", e);
             if tokio::time::timeout(Duration::from_secs(5), rx.recv())
@@ -89,7 +109,30 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
     let arx = Arc::new(Mutex::new(rx));
     let mut return_value = false;
     while let Some(_) = session.call_next() {
-        session.init_connection().await?;
+        let mut retries = 0;
+        loop {
+            match session.init_connection().await {
+                Ok(()) => break,
+                Err(e) if e.is::<session::error::TimeoutError>() => {
+                    if retries > 6 {
+                        return Err(TooManyRetriesError::new(e))
+                    }
+                    let sleep_time = get_timeout_sleep(retries);
+                    warn!("Got timeout error, sleep {} seconds", sleep_time);
+                    let mut rv = arx.lock().await;
+                    if tokio::time::timeout(Duration::from_secs(sleep_time), rv.recv())
+                        .await
+                        .is_ok()
+                    {
+                        return Ok(return_value)
+                    }
+                    retries += 1;
+                }
+                Err(e) => {
+                    return Err(e)
+                }
+            }
+        }
         match post_main(&session, arx.clone()).await {
             Ok(()) => {
                 return_value = true;

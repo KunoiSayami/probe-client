@@ -28,6 +28,7 @@ use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::time::Duration;
 use systemstat::Platform;
+use crate::session::error::TimeoutError;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_INTERVAL: u32 = 180;
@@ -52,6 +53,25 @@ pub mod error {
     impl TooManyRetriesError {
         pub fn new(e: anyhow::Error) -> anyhow::Error {
             anyhow::Error::new(TooManyRetriesError { e })
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TimeoutError {
+        e: anyhow::Error,
+    }
+
+    impl std::error::Error for TimeoutError {}
+
+    impl std::fmt::Display for TimeoutError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Timeout: {:?}", self.e)
+        }
+    }
+
+    impl TimeoutError {
+        pub fn new(e: anyhow::Error) -> anyhow::Error {
+            anyhow::Error::new(TimeoutError { e })
         }
     }
 }
@@ -292,7 +312,13 @@ impl Session {
         url: &str,
         data: &HashMap<String, String>,
     ) -> Result<reqwest::Response> {
-        Ok(self.client.post(url).json(data).send().await?)
+        return match self.client.post(url).json(data).send().await {
+            Ok(r) => Ok(r),
+            Err(e) if e.is_timeout() => {
+                Err(TimeoutError::new(anyhow::Error::new(e)))
+            }
+            Err(e) => Err(anyhow::Error::from(e))
+        }
     }
 
     pub async fn send_data(&self, action: &str, body: Option<String>) -> Result<reqwest::Response> {
