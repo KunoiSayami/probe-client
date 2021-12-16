@@ -31,7 +31,7 @@ use tokio::sync::Mutex;
 
 use crate::session::error::TooManyRetriesError;
 
-const MAX_TIMEOUT_RETRIES: u32 = 6;
+const MAX_TIMEOUT_RETRIES: u32 = 5;
 
 fn get_timeout_sleep(retry_times: u32) -> u64 {
     5 * 4u64.pow(retry_times) + 10

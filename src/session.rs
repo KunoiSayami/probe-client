@@ -241,6 +241,7 @@ impl From<&JsonResponse> for ExitProcessRequest {
 
 pub struct Session {
     config: Configure,
+    // TODO: client should resettable
     client: reqwest::Client,
     server_version: String,
     server_address: ServerAddress,
