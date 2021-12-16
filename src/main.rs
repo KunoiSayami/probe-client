@@ -31,6 +31,8 @@ use tokio::sync::Mutex;
 
 use crate::session::error::TooManyRetriesError;
 
+const MAX_TIMEOUT_RETRIES: u32 = 6;
+
 fn get_timeout_sleep(retry_times: u32) -> u64 {
     5 * 4u64.pow(retry_times) + 10
 }
@@ -47,19 +49,22 @@ async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> any
                 break Err(e);
             }
             if e.is::<session::error::TimeoutError>() {
-                if retries > 6 {
-                    return Err(TooManyRetriesError::new(e))
+                if retries > MAX_TIMEOUT_RETRIES {
+                    return Err(TooManyRetriesError::new(e));
                 };
                 let sleep_time = get_timeout_sleep(retries);
-                warn!("Got timeout error, sleep {} seconds", sleep_time);
+                warn!(
+                    "Got timeout error in send heartbeat, sleep {} seconds",
+                    sleep_time
+                );
                 if tokio::time::timeout(Duration::from_secs(sleep_time), rx.recv())
                     .await
                     .is_ok()
                 {
-                    break Ok(())
+                    break Ok(());
                 }
                 retries += 1;
-                continue
+                continue;
             }
             error!("Got error in send heartbeat: {:?}", e);
             if tokio::time::timeout(Duration::from_secs(5), rx.recv())
@@ -80,6 +85,7 @@ async fn post_main(session: &Session, rx: Arc<Mutex<mpsc::Receiver<()>>>) -> any
         {
             break Ok(());
         }
+        retries = 0;
         times = 0;
     }
 }
@@ -114,8 +120,8 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
             match session.init_connection().await {
                 Ok(()) => break,
                 Err(e) if e.is::<session::error::TimeoutError>() => {
-                    if retries > 6 {
-                        return Err(TooManyRetriesError::new(e))
+                    if retries > MAX_TIMEOUT_RETRIES {
+                        return Err(TooManyRetriesError::new(e));
                     }
                     let sleep_time = get_timeout_sleep(retries);
                     warn!("Got timeout error, sleep {} seconds", sleep_time);
@@ -124,13 +130,11 @@ async fn async_main(mut session: Session, rx: mpsc::Receiver<()>) -> anyhow::Res
                         .await
                         .is_ok()
                     {
-                        return Ok(return_value)
+                        return Ok(return_value);
                     }
                     retries += 1;
                 }
-                Err(e) => {
-                    return Err(e)
-                }
+                Err(e) => return Err(e),
             }
         }
         match post_main(&session, arx.clone()).await {

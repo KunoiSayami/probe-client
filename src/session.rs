@@ -19,6 +19,7 @@
  */
 use crate::configparser::config::Configure;
 use crate::configparser::config::*;
+use crate::session::error::TimeoutError;
 use crate::session::response::JsonResponse;
 use anyhow::Result;
 use log::{error, info};
@@ -28,7 +29,6 @@ use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::time::Duration;
 use systemstat::Platform;
-use crate::session::error::TimeoutError;
 
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_INTERVAL: u32 = 180;
@@ -314,11 +314,9 @@ impl Session {
     ) -> Result<reqwest::Response> {
         return match self.client.post(url).json(data).send().await {
             Ok(r) => Ok(r),
-            Err(e) if e.is_timeout() => {
-                Err(TimeoutError::new(anyhow::Error::new(e)))
-            }
-            Err(e) => Err(anyhow::Error::from(e))
-        }
+            Err(e) if e.is_timeout() => Err(TimeoutError::new(anyhow::Error::new(e))),
+            Err(e) => Err(anyhow::Error::from(e)),
+        };
     }
 
     pub async fn send_data(&self, action: &str, body: Option<String>) -> Result<reqwest::Response> {
